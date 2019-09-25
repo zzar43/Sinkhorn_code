@@ -1,45 +1,41 @@
-function line_search_backtracking(op_fn, xk, fk, gradk, alpha, min_value, max_value; rho=0.9, c=1e-4, maxSearchTime=30)
-    print("Start line search, fk: ", fk)
-    pk = -gradk
-    
-    xkk = xk+alpha*pk
-    xkk[findall(ind->ind<min_value,xk)] .= min_value
-    xkk[findall(ind->ind>max_value,xk)] .= max_value
-    fk1, gradk1 = op_fn(xkk)
-    println(". fk1: ", fk1)
+using Printf
 
+function line_search_backtracking(op_fn, xk, fk, gradk, alpha, min_value, max_value; rho=0.9, c=0.9, maxSearchTime=30)
+    pk = -gradk
+    @printf "Start line search. fk: %1.5e\n" fk
+    xkk = update_fn(xk, alpha, gradk, min_value, max_value)
+    fk1, gradk1 = op_fn(xkk)
+    @printf "    alpha: %1.5e" alpha
+    @printf "    fk1: %1.5e" fk1
+    @printf "    fk-c*alpha*gradk^2: %1.5e\n" (fk + c*alpha*sum(gradk.*pk))
+    
     searchTime = 0
     for iter = 1:maxSearchTime
-        if fk1 < fk + c*alpha*sum(gradk.*pk)
+        if fk1 <= (fk + c*alpha*sum(gradk.*pk))
             break
         end
         alpha = rho * alpha
-        
-        xkk = xk+alpha*pk
-        xkk[findall(ind->ind<min_value,xk)] .= min_value
-        xkk[findall(ind->ind>max_value,xk)] .= max_value
-        fk1, gradk1 = op_fn(xkk)
-        
+        xkk = update_fn(xk, alpha, gradk, min_value, max_value)
+        fk1, gradk1 = op_fn(xkk)   
+#         println("    alpha: $alpha, fk1: $fk1, fk+c*alpha*gradk^2: ", (fk + c*alpha*sum(gradk.*pk)))
+        @printf "    alpha: %1.5e" alpha
+        @printf "    fk1: %1.5e" fk1
+        @printf "    fk-c*alpha*gradk^2: %1.5e\n" (fk + c*alpha*sum(gradk.*pk))
         searchTime += 1
-        println("Search time: ", searchTime, ". alpha: ", alpha, ". fk1: ", fk1)
+    end
+    if fk1 > fk + c*alpha*sum(gradk.*pk)
+        println("Line search failed. Search time: ", searchTime, ". Try to decrease search coef c.")
+        alpha = 0
+    else
+        println("Line search succeed. Search time: ", searchTime, ".")
     end
 
-    if searchTime == maxSearchTime
-        println("Line search failed. Search time: ", searchTime, ". Try to decrease search coef alpha, rho, c.")
-        xk1 = xk
-        fk1 = fk
-        gradk1 = gradk
-    elseif searchTime < maxSearchTime
-        println("Line search succeed. Search time: ", searchTime, ".")
-        xk1 = xkk
-    end
-    
-    return xk1, fk1, gradk1
+    return alpha
 end
 
-function gradient_descent(fn, x0, alpha, iterNum, min_value, max_value; rho=0.9, c=0.9, maxSearchTime=30)
-#     fn: returns both value of f and gradient of f
-    xk = x0[:]
+function gradient_descent(fn, x0, alpha, iterNum, min_value, max_value; rho=0.9, c=0.9, maxSearchTime=30, threshold=1e-5)
+
+    xk = convert(Array{Float64,1}, x0[:])
     fn_value = zeros(iterNum+1)
     
     fk, gradk = fn(xk)
@@ -48,49 +44,112 @@ function gradient_descent(fn, x0, alpha, iterNum, min_value, max_value; rho=0.9,
     for iter = 1:iterNum
         println("Main iteration: ", iter)
         
-        xk1, fk, gradk = line_search_backtracking(fn, xk, fk, gradk, alpha, min_value, max_value; rho=rho, c=c, maxSearchTime=maxSearchTime)
-        
-        if xk1 == xk
-            xk[findall(ind->ind<min_value,xk)] .= min_value
-            xk[findall(ind->ind>max_value,xk)] .= max_value
+#         Line search
+        alpha0 = line_search_backtracking(fn, xk, fk, gradk, alpha, min_value, max_value; rho=rho, c=c, maxSearchTime=maxSearchTime)
+#         println(alpha0)
+        if alpha0 == 0
+            println("----------------------------------------------------------------")
             println("Line search Failed. Try decrease line search coef alpha. Interupt.")
-            println("--------------------------------")
+            println("----------------------------------------------------------------")
             break
         else
-            xk[findall(ind->ind<min_value,xk)] .= min_value
-            xk[findall(ind->ind>max_value,xk)] .= max_value
-            xk = xk1
+            xk = update_fn(xk, alpha0, gradk, min_value, max_value)
         end
         
+#         Compute gradient for next iteration
+        fk, gradk = fn(xk)
         fn_value[iter+1] = fk
-        println("--------------------------------")
-
+        println("----------------------------------------------------------------")
+        if fk <= threshold
+            @printf "fk: %1.5e " fk
+            println("Iteration is done.")
+            println("----------------------------------------------------------------\n")
+            break
+        end
+        if iter == iterNum 
+            @printf "fk: %1.5e " fk
+            println("Iteration is done. \n")
+            println("----------------------------------------------------------------\n")
+        end
     end
+
     return xk, fn_value
 end
 
-function obj_fn(c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100)
-    x = reshape(c, Nx, Ny)
+function nonlinear_cg(fn, x0, alpha, iterNum, min_value, max_value; rho=0.9, c=0.9, maxSearchTime=30, threshold=1e-5)
+    xk = convert(Array{Float64,1}, x0[:])
+    fn_value = zeros(iterNum+1)
 
-    data, u = multi_solver(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
+    fk, gradk = fn(xk)
+    fn_value[1] = fk
+    d0 = -gradk
+    r0 = -gradk
+    
+    iter = 1
+    println("Main iteration: ", iter)
+    alpha0 = line_search_backtracking(fn, xk, fk, -d0, alpha, min_value, max_value; rho=rho, c=c, maxSearchTime=maxSearchTime)
 
-    fk = 0.5 * norm(data - data0) ^ 2
+    if alpha0 == 0
+        println("----------------------------------------------------------------")
+        println("Line search Failed. Try decrease line search coef alpha. Interupt.")
+        println("----------------------------------------------------------------")
+    else
 
-    gradk = grad_l2(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef);
+    #     update
+        xk = update_fn(xk, alpha0, gradk, min_value, max_value)
+    #     compute gradient for next iteration
+        fk, gradk = fn(xk)
+        fn_value[2] = fk
+        r1 = -gradk
+        beta = (r1'*(r1-r0))/(r0'*r0)
+        beta = max(beta, 0)
+        d1 = r1 + beta*d0
+        println("----------------------------------------------------------------")
 
-    gradk = reshape(gradk, Nx*Ny, 1)
-    return fk, gradk
+        for iter = 2:iterNum
+            println("Main iteration: ", iter)
+    #         line search
+            alpha0 = line_search_backtracking(fn, xk, fk, -d1, alpha, min_value, max_value; rho=rho, c=c, maxSearchTime=maxSearchTime)
+    #         update
+            if alpha0 == 0
+                println("----------------------------------------------------------------")
+                println("Line search Failed. Try decrease line search coef alpha. Interupt.")
+                println("----------------------------------------------------------------")
+                break
+            else
+                xk = update_fn(xk, alpha0, gradk, min_value, max_value)
+            end
+            r0[:] = r1[:]
+            d0[:] = d1[:]
+    #     compute gradient for next iteration
+            fk, gradk = fn(xk)
+            fn_value[iter+1] = fk
+            r1 = -gradk
+            beta = (r1'*(r1-r0))/(r0'*r0)
+            beta = max(beta, 0)
+            d1 = r1 + beta*d0
+
+            println("----------------------------------------------------------------")
+            if fk <= threshold
+                @printf "fk: %1.5e " fk
+                println("Iteration is done.")
+                println("----------------------------------------------------------------\n")
+                break
+            end
+            if iter == iterNum 
+                @printf "fk: %1.5e " fk
+                println("Iteration is done. \n")
+                println("----------------------------------------------------------------\n")
+            end
+        end
+    end
+
+    return xk, fn_value
 end
 
-function obj_fn_parallel(c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100)
-    x = reshape(c, Nx, Ny)
-
-    data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
-
-    fk = 0.5 * norm(data - data0) ^ 2
-
-    gradk = grad_l2_parallel(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef);
-
-    gradk = reshape(gradk, Nx*Ny, 1)
-    return fk, gradk
+function update_fn(xk, alphak, gradk, min_value, max_value)
+    xk1 = xk - alphak * gradk
+    xk1[findall(ind->ind<min_value,xk1)] .= min_value
+    xk1[findall(ind->ind>max_value,xk1)] .= max_value
+    return xk1
 end
