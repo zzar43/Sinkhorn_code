@@ -131,37 +131,37 @@ function sinkhorn_signal_2d(f, g, M; lambda=100, numItermax = 1000, stopThr = 1e
     return T, a, d
 end
 
-function sinkhorn_signal_1d_linear(r, c, M; lambda=100, numItermax = 1000, stopThr = 1e-6, verbose=false)
+# function sinkhorn_signal_1d_linear(r, c, M; lambda=100, numItermax = 1000, stopThr = 1e-6, verbose=false)
     
-    N = length(r)
-    # normalization
-    cp = zeros(N)
-    cn = zeros(N)
-    cp[c .>= 0] = c[c .>= 0]
-    cn[c .< 0] = c[c .< 0]
-    cn = abs.(cn)
+#     N = length(r)
+#     # normalization
+#     cp = zeros(N)
+#     cn = zeros(N)
+#     cp[c .>= 0] = c[c .>= 0]
+#     cn[c .< 0] = c[c .< 0]
+#     cn = abs.(cn)
     
-    rp = zeros(N)
-    rn = zeros(N)
-    rp[r .>= 0] = r[r .>= 0]
-    rn[r .< 0] = r[r .< 0]
-    rn = abs.(rn)
+#     rp = zeros(N)
+#     rn = zeros(N)
+#     rp[r .>= 0] = r[r .>= 0]
+#     rn[r .< 0] = r[r .< 0]
+#     rn = abs.(rn)
 
-#     normalization
-    cp = cp ./ norm(cp,1)
-    cn = cn ./ norm(cn,1)
-    rp = rp ./ norm(rp,1)
-    rn = rn ./ norm(rn,1)
+# #     normalization
+#     cp = cp ./ norm(cp,1)
+#     cn = cn ./ norm(cn,1)
+#     rp = rp ./ norm(rp,1)
+#     rn = rn ./ norm(rn,1)
 
-#     compute sinkhorn
-    Tp, ap, dp = sinkhorn_basic(rp, cp, M; lambda=lambda, numItermax = numItermax, stopThr = stopThr, verbose=verbose);
-    Tn, an, dn = sinkhorn_basic(rn, cn, M; lambda=lambda, numItermax = numItermax, stopThr = stopThr, verbose=verbose);
+# #     compute sinkhorn
+#     Tp, ap, dp = sinkhorn_basic(rp, cp, M; lambda=lambda, numItermax = numItermax, stopThr = stopThr, verbose=verbose);
+#     Tn, an, dn = sinkhorn_basic(rn, cn, M; lambda=lambda, numItermax = numItermax, stopThr = stopThr, verbose=verbose);
 
-    T = Tp + Tn;
-    a = ap - an;
-    d = dp + dn;
-    return T, a, d
-end
+#     T = Tp + Tn;
+#     a = ap - an;
+#     d = dp + dn;
+#     return T, a, d
+# end
 
 function sinkhorn_signal_1d_linear(r, c, M; lambda=100, numItermax = 1000, stopThr = 1e-6, verbose=false)
     mi = min(minimum(r), minimum(c))
