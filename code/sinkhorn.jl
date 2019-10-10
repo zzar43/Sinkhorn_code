@@ -421,168 +421,168 @@ function find_support_2d(f; threshold=1e-5)
     return supp_f
 end
 
-function normalized_sinkhorn_1d(r, c, M; theta=1e-3, lambda=1e3, numItermax=1000, stopThr=1e-6, verbose=false)
-    f = copy(r)
-    g = copy(c)
-    N = length(f)
-    
-    T, grad0, dist0 = sinkhorn_basic(f./norm(f,1), g./norm(g,1), M; lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose)
-    
-#     gradient
-    temp_coef = -1 ./ norm(f,1)^2 * f * sign.(f)' + 1/norm(f,1) * I(N)
-    grad1 = grad0' * temp_coef
-#     grad2 = sign(norm(g,1)-norm(f,1)) * sign.(f)'
-    grad2 = sign(norm(f,1)-norm(g,1)) * sign.(f)'
-    grad = (1-theta) * grad1 + theta * grad2
-    
-#     distant
-    dist = (1-theta) * dist0 + theta * abs(norm(f,1)-norm(g,1))
-    return T, grad, dist
-end
-
-function normalized_sinkhorn_signal_1d(r, c, M; theta=1e-3, lambda=1e3, numItermax=1000, stopThr=1e-6, verbose=false)
-    f = copy(r)
-    g = copy(c)
-    
-    Pfp = proj_p(f)
-    Pfn = proj_n(f)
-    Pgp = proj_p(g)
-    Pgn = proj_n(g)
-
-    fp = Pfp * f
-    fn = Pfn * f
-    gp = Pgp * g
-    gn = Pgn * g
-    
-    Tp, ggp, dp = normalized_sinkhorn_1d(fp, gp, M; theta=theta, lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose)
-    Tn, ggn, dn = normalized_sinkhorn_1d(fn, gn, M; theta=theta, lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose)
-    
-    grad = ggp * Pfp + ggn * Pfn
-    dist = dp + dn
-    T = Tp*Pfp + Tn*Pfn
-    
-    return T, grad, dist
-end
-
-# function normalized_sinkhorn_signal_1d(r, c, M; theta=0.5, normal_coef=0, lambda=1e3, numItermax=1000, stopThr=1e-6, verbose=false, supp_th=1e-10)
+# function normalized_sinkhorn_1d(r, c, M; theta=1e-3, lambda=1e3, numItermax=1000, stopThr=1e-6, verbose=false)
 #     f = copy(r)
 #     g = copy(c)
-    
 #     N = length(f)
-#     # normalization
-#     if normal_coef == 0
-#         mi = 2 * abs(min(minimum(f), minimum(g)))
-#     elseif abs(min(minimum(f), minimum(g))) >= normal_coef
-#         error("Please increase the normalization coef.")
-#     else
-#         mi = normal_coef
-#     end
     
-#     if supp_th == 0
-#         supp_f = 1:length(f)
-#         supp_g = 1:length(g)
-#     else
-#         supp_f = find_support_1d(f; threshold=supp_th)
-#         supp_g = find_support_1d(g; threshold=supp_th)
-#     end
+#     T, grad0, dist0 = sinkhorn_basic(f./norm(f,1), g./norm(g,1), M; lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose)
     
-#     f_hat = zeros(N)
-#     g_hat = zeros(N)
-#     f_hat[supp_f] = f[supp_f] .+ mi
-#     g_hat[supp_g] = g[supp_g] .+ mi
-    
-#     # sinkrhon
-#     T, gg, dist1 = sinkhorn_basic(f_hat./norm(f_hat,1), g_hat./norm(g_hat,1), M; lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose);
-    
-#     temp1 = -1 ./ (norm(f_hat,1)^2) * f_hat * sign.(f_hat)' + (1 ./ norm(f_hat,1)) * I(N)
-#     grad1 = gg' * temp1
-
-#     if norm(f_hat,1) > norm(g_hat,1)
-#         grad2 = sign.(f_hat)'
-#     elseif norm(f_hat,1) < norm(g_hat,1)
-#         grad2 = -1 * sign.(f_hat)'
-#     else
-#         grad2 = zeros(N)'
-#     end
-
+# #     gradient
+#     temp_coef = -1 ./ norm(f,1)^2 * f * sign.(f)' + 1/norm(f,1) * I(N)
+#     grad1 = grad0' * temp_coef
+# #     grad2 = sign(norm(g,1)-norm(f,1)) * sign.(f)'
+#     grad2 = sign(norm(f,1)-norm(g,1)) * sign.(f)'
 #     grad = (1-theta) * grad1 + theta * grad2
-#     dist = (1-theta) * dist1 + theta * abs(norm(f_hat,1)-norm(g_hat,1))
     
+# #     distant
+#     dist = (1-theta) * dist0 + theta * abs(norm(f,1)-norm(g,1))
 #     return T, grad, dist
 # end
 
-# function normalized_sinkhorn_signal_2d(r, c, M; theta=0.5, normal_coef=0, lambda=1e3, numItermax=100, stopThr=1e-6, verbose=false, supp_th=1e-5)
+# function normalized_sinkhorn_signal_1d(r, c, M; theta=1e-3, lambda=1e3, numItermax=1000, stopThr=1e-6, verbose=false)
 #     f = copy(r)
 #     g = copy(c)
     
-#     Nx, Ny = size(f)
-    
-#     # normalization
-#     if normal_coef == 0
-#         mi = 2 * abs(min(minimum(f), minimum(g)))
-#     elseif abs(min(minimum(f), minimum(g))) >= normal_coef
-#         error("Please increase the normalization coef.")
-#     else
-#         mi = normal_coef
-#     end
-    
-#     if supp_th == 0
-#         supp_f = 1:length(f)
-#         supp_g = 1:length(g)
-#     else
-#         supp_f = find_support_1d(f; threshold=supp_th)
-#         supp_g = find_support_1d(g; threshold=supp_th)
-#     end
-    
-#     f_hat = zeros(Nx,Ny)
-#     g_hat = zeros(Nx,Ny)
-#     f_hat[supp_f] = f[supp_f] .+ mi
-#     g_hat[supp_g] = g[supp_g] .+ mi
-    
-#     # sinkrhon
-#     T, gg, dist1 = sinkhorn_basic_2d(f_hat./norm(f_hat,1), g_hat./norm(g_hat,1), M; lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose);
-    
-#     temp1 = -1 ./ (norm(f_hat[:],1)^2) * f_hat[:] * sign.(f_hat[:])' + (1 ./ norm(f_hat[:],1)) * I(Nx*Ny)
-#     grad1 = reshape(gg, Nx*Ny)' * temp1
-#     grad1 = reshape(grad1, Nx, Ny)
+#     Pfp = proj_p(f)
+#     Pfn = proj_n(f)
+#     Pgp = proj_p(g)
+#     Pgn = proj_n(g)
 
-#     if norm(f_hat,1) > norm(g_hat,1)
-#         grad2 = sign.(f_hat)
-#     elseif norm(f_hat,1) < norm(g_hat,1)
-#         grad2 = -1 * sign.(f_hat)
-#     else
-#         grad2 = zeros(Nx,Ny)
-#     end
-
-#     grad = (1-theta) * grad1 + theta * grad2
-#     dist = (1-theta) * dist1 + theta * abs(norm(f_hat,1)-norm(g_hat,1))
+#     fp = Pfp * f
+#     fn = Pfn * f
+#     gp = Pgp * g
+#     gn = Pgn * g
+    
+#     Tp, ggp, dp = normalized_sinkhorn_1d(fp, gp, M; theta=theta, lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose)
+#     Tn, ggn, dn = normalized_sinkhorn_1d(fn, gn, M; theta=theta, lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose)
+    
+#     grad = ggp * Pfp + ggn * Pfn
+#     dist = dp + dn
+#     T = Tp*Pfp + Tn*Pfn
     
 #     return T, grad, dist
 # end
 
-# function normalized_sinkhorn_2d(r, c, M; theta=0.5, lambda=1e3, numItermax=100, stopThr=1e-6, verbose=false)
-#     f = copy(r)
-#     g = copy(c)
+function normalized_sinkhorn_signal_1d(r, c, M; theta=0.5, normal_coef=0, lambda=1e3, numItermax=1000, stopThr=1e-6, verbose=false, supp_th=0)
+    f = copy(r)
+    g = copy(c)
     
-#     Nx, Ny = size(f)
+    N = length(f)
+    # normalization
+    if normal_coef == 0
+        mi = 2 * abs(min(minimum(f), minimum(g)))
+    elseif abs(min(minimum(f), minimum(g))) >= normal_coef
+        error("Please increase the normalization coef.")
+    else
+        mi = normal_coef
+    end
     
-#     # sinkrhon
-#     T, gg, dist1 = sinkhorn_basic_2d(f./(norm(f,1)), g./(norm(g,1)), M; lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose);
+    if supp_th == 0
+        supp_f = 1:length(f)
+        supp_g = 1:length(g)
+    else
+        supp_f = find_support_1d(f; threshold=supp_th)
+        supp_g = find_support_1d(g; threshold=supp_th)
+    end
     
-#     temp1 = -1 ./ (norm(f[:],1)^2) * f[:] * sign.(f[:])' + (1 ./ norm(f[:],1)) * I(Nx*Ny)
-#     grad1 = reshape(gg, Nx*Ny)' * temp1
-#     grad1 = reshape(grad1, Nx, Ny)
+    f_hat = zeros(N)
+    g_hat = zeros(N)
+    f_hat[supp_f] = f[supp_f] .+ mi
+    g_hat[supp_g] = g[supp_g] .+ mi
+    
+    # sinkrhon
+    T, gg, dist1 = sinkhorn_basic(f_hat./norm(f_hat,1), g_hat./norm(g_hat,1), M; lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose);
+    
+    temp1 = -1 ./ (norm(f_hat,1)^2) * f_hat * sign.(f_hat)' + (1 ./ norm(f_hat,1)) * I(N)
+    grad1 = gg' * temp1
 
-#     if norm(f,1) > norm(g,1)
-#         grad2 = sign.(f)
-#     elseif norm(f,1) < norm(g,1)
-#         grad2 = -1 * sign.(f)
-#     else
-#         grad2 = zeros(Nx,Ny)
-#     end
+    if norm(f_hat,1) > norm(g_hat,1)
+        grad2 = sign.(f_hat)'
+    elseif norm(f_hat,1) < norm(g_hat,1)
+        grad2 = -1 * sign.(f_hat)'
+    else
+        grad2 = zeros(N)'
+    end
 
-#     grad = (1-theta) * grad1 + theta * grad2
-#     dist = (1-theta) * dist1 + theta * abs(norm(f,1)-norm(g,1))
+    grad = (1-theta) * grad1 + theta * grad2
+    dist = (1-theta) * dist1 + theta * abs(norm(f_hat,1)-norm(g_hat,1))
     
-#     return T, grad, dist
-# end
+    return T, grad, dist
+end
+
+function normalized_sinkhorn_signal_2d(r, c, M; theta=0.5, normal_coef=0, lambda=1e3, numItermax=100, stopThr=1e-6, verbose=false, supp_th=1e-5)
+    f = copy(r)
+    g = copy(c)
+    
+    Nx, Ny = size(f)
+    
+    # normalization
+    if normal_coef == 0
+        mi = 2 * abs(min(minimum(f), minimum(g)))
+    elseif abs(min(minimum(f), minimum(g))) >= normal_coef
+        error("Please increase the normalization coef.")
+    else
+        mi = normal_coef
+    end
+    
+    if supp_th == 0
+        supp_f = 1:length(f)
+        supp_g = 1:length(g)
+    else
+        supp_f = find_support_1d(f; threshold=supp_th)
+        supp_g = find_support_1d(g; threshold=supp_th)
+    end
+    
+    f_hat = zeros(Nx,Ny)
+    g_hat = zeros(Nx,Ny)
+    f_hat[supp_f] = f[supp_f] .+ mi
+    g_hat[supp_g] = g[supp_g] .+ mi
+    
+    # sinkrhon
+    T, gg, dist1 = sinkhorn_basic_2d(f_hat./norm(f_hat,1), g_hat./norm(g_hat,1), M; lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose);
+    
+    temp1 = -1 ./ (norm(f_hat[:],1)^2) * f_hat[:] * sign.(f_hat[:])' + (1 ./ norm(f_hat[:],1)) * I(Nx*Ny)
+    grad1 = reshape(gg, Nx*Ny)' * temp1
+    grad1 = reshape(grad1, Nx, Ny)
+
+    if norm(f_hat,1) > norm(g_hat,1)
+        grad2 = sign.(f_hat)
+    elseif norm(f_hat,1) < norm(g_hat,1)
+        grad2 = -1 * sign.(f_hat)
+    else
+        grad2 = zeros(Nx,Ny)
+    end
+
+    grad = (1-theta) * grad1 + theta * grad2
+    dist = (1-theta) * dist1 + theta * abs(norm(f_hat,1)-norm(g_hat,1))
+    
+    return T, grad, dist
+end
+
+function normalized_sinkhorn_2d(r, c, M; theta=0.5, lambda=1e3, numItermax=100, stopThr=1e-6, verbose=false)
+    f = copy(r)
+    g = copy(c)
+    
+    Nx, Ny = size(f)
+    
+    # sinkrhon
+    T, gg, dist1 = sinkhorn_basic_2d(f./(norm(f,1)), g./(norm(g,1)), M; lambda=lambda, numItermax=numItermax, stopThr=stopThr, verbose=verbose);
+    
+    temp1 = -1 ./ (norm(f[:],1)^2) * f[:] * sign.(f[:])' + (1 ./ norm(f[:],1)) * I(Nx*Ny)
+    grad1 = reshape(gg, Nx*Ny)' * temp1
+    grad1 = reshape(grad1, Nx, Ny)
+
+    if norm(f,1) > norm(g,1)
+        grad2 = sign.(f)
+    elseif norm(f,1) < norm(g,1)
+        grad2 = -1 * sign.(f)
+    else
+        grad2 = zeros(Nx,Ny)
+    end
+
+    grad = (1-theta) * grad1 + theta * grad2
+    dist = (1-theta) * dist1 + theta * abs(norm(f,1)-norm(g,1))
+    
+    return T, grad, dist
+end

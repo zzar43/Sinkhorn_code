@@ -17,7 +17,6 @@ function line_search_backtracking(op_fn, xk, fk, gradk, alpha, min_value, max_va
         alpha = rho * alpha
         xkk = update_fn(xk, alpha, gradk, min_value, max_value)
         fk1, gradk1 = op_fn(xkk)   
-#         println("    alpha: $alpha, fk1: $fk1, fk+c*alpha*gradk^2: ", (fk + c*alpha*sum(gradk.*pk)))
         @printf "    alpha: %1.5e" alpha
         @printf "    fk1: %1.5e" fk1
         @printf "    fk-c*alpha*gradk^2: %1.5e\n" (fk + c*alpha*sum(gradk.*pk))
@@ -59,6 +58,41 @@ function gradient_descent(fn, x0, alpha, iterNum, min_value, max_value; rho=0.9,
 #         Compute gradient for next iteration
         fk, gradk = fn(xk)
         fn_value[iter+1] = fk
+        println("----------------------------------------------------------------")
+        if fk <= threshold
+            @printf "fk: %1.5e " fk
+            println("Iteration is done.")
+            println("----------------------------------------------------------------\n")
+            break
+        end
+        if iter == iterNum 
+            @printf "fk: %1.5e " fk
+            println("Iteration is done. \n")
+            println("----------------------------------------------------------------\n")
+        end
+    end
+
+    return xk, fn_value
+end
+
+function gradient_descent_test(fn, x0, alpha, iterNum, min_value, max_value; rho=0.9, c=0.9, threshold=1e-5)
+    
+    xk = convert(Array{Float64,1}, x0[:])
+    fn_value = zeros(iterNum+1)
+    
+    fk, gradk = fn(xk)
+    gradk = gradk ./ maximum(abs.(gradk))
+#     println(maximum(gradk))
+    
+    for iter = 1:iterNum
+        println("Main iteration: ", iter)
+        xk = update_fn(xk, alpha, gradk, min_value, max_value)
+        
+#         Compute gradient for next iteration
+        fk, gradk = fn(xk)
+        gradk = gradk ./ maximum(abs.(gradk))
+        fn_value[iter+1] = fk
+        @printf "fk: %1.5e " fk
         println("----------------------------------------------------------------")
         if fk <= threshold
             @printf "fk: %1.5e " fk
@@ -162,51 +196,26 @@ function obj_fn(data0, u, c, rho, Nx, Ny, Nt, h, dt, source, source_position, re
     fk = 0.5 * norm(data - data0) ^ 2 * dt
 
     gradk = grad_l2(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef);
-
-    fk, gradk = fn(xk)
-    fn_value[1] = fk
-    d0 = -gradk
-    r0 = -gradk
     
-    iter = 1
-    println("Main iteration: ", iter)
-    alpha0 = line_search_backtracking(fn, xk, fk, -d0, alpha, min_value, max_value; rho=rho, c=c, maxSearchTime=maxSearchTime)
+    gradk = reshape(gradk, Nx*Ny, 1)
+    
+    return fk, gradk
+end
 
 function obj_fn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100)
     x = reshape(c, Nx, Ny)
 
-    #     update
-        xk = update_fn(xk, alpha0, gradk, min_value, max_value)
-    #     compute gradient for next iteration
-        fk, gradk = fn(xk)
-        fn_value[2] = fk
-        r1 = -gradk
-        beta = (r1'*(r1-r0))/(r0'*r0)
-        beta = max(beta, 0)
-        d1 = r1 + beta*d0
-        println("----------------------------------------------------------------")
+    data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
 
     fk = 0.5 * norm(data - data0) ^ 2 * dt
 
-            println("----------------------------------------------------------------")
-            if fk <= threshold
-                @printf "fk: %1.5e " fk
-                println("Iteration is done.")
-                println("----------------------------------------------------------------\n")
-                break
-            end
-            if iter == iterNum 
-                @printf "fk: %1.5e " fk
-                println("Iteration is done. \n")
-                println("----------------------------------------------------------------\n")
-            end
-        end
-    end
-
-    return xk, fn_value
+    gradk = grad_l2_parallel(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef);
+    
+    gradk = reshape(gradk, Nx*Ny, 1)
+    return fk, gradk
 end
 
-function obj_fn_sinkhorn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100, lambda=10, numItermax=10, stopThr = 1e-6)
+function obj_fn_sinkhorn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100, lambda=1e2, numItermax=10, stopThr = 1e-6)
     x = reshape(c, Nx, Ny)
 
     data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
