@@ -30,7 +30,7 @@ function adj_source_sinkhorn(data1, data2, M; reg=1e-3, reg_m=1e2, iterMax=100, 
     return adj
 end
         
-function adj_source_sinkhorn_parallel(data1, data2, M; reg_p=0, reg=1e-3, reg_m=1e2, iterMax=100, verbose=false);
+function adj_source_sinkhorn_parallel(data1, data2, M; reg_p=0, reg=1e-3, reg_m=1e2, iterMax=50, verbose=false);
     mi1 = minimum(data1)
     mi2 = minimum(data2)
     mi = -1.1*min(mi1,mi2)
@@ -113,7 +113,7 @@ function grad_l2_parallel(data, u, data0, c, rho, Nx, Ny, Nt, h, dt, source_posi
 #     input:
 #     data1: received data
 #     c1, rho1: 
-    
+    c = reshape(c, Nx, Ny)
     adj_source = data - data0
     
 #     adjoint wavefield
@@ -125,10 +125,13 @@ function grad_l2_parallel(data, u, data0, c, rho, Nx, Ny, Nt, h, dt, source_posi
     gradl = sum(gradl, dims=[3,4])
     gradl = gradl[:,:,1,1]
     
+#     gradl .= gradl / maximum(abs.(gradl))
+    gradl = gradl ./ norm(gradl,2)
     return gradl
 end
         
-function grad_sinkhorn_parallel(data, u, data0, c, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; reg_p=0, pml_len=10, pml_coef=100, reg=5e-3, reg_m=1e2, iterMax=100, verbose=false)
+function grad_sinkhorn_parallel(data, u, data0, c, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; reg_p=0, pml_len=10, pml_coef=100, reg=5e-3, reg_m=1e2, iterMax=50, verbose=false)
+    c = reshape(c, Nx, Ny)
     Nt = size(data,1)
     t = range(0,step=dt,length=Nt)
     M = cost_matrix_1d(t,t)
@@ -144,5 +147,7 @@ function grad_sinkhorn_parallel(data, u, data0, c, rho, Nx, Ny, Nt, h, dt, sourc
     grad = sum(grad, dims=[3,4])
     grad = grad[:,:,1,1]
     
+#     grad .= grad / maximum(abs.(grad))
+    grad = grad ./ norm(grad,2)
     return grad, fk
 end
