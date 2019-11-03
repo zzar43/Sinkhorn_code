@@ -202,14 +202,14 @@ function obj_fn(data0, u, c, rho, Nx, Ny, Nt, h, dt, source, source_position, re
     return fk, gradk
 end
 
-function obj_fn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100)
+function obj_fn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; save_ratio=1, pml_len=10, pml_coef=100)
     x = reshape(c, Nx, Ny)
 
-    data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
+    data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; save_ratio=save_ratio, pml_len=pml_len, pml_coef=pml_coef)
 
     fk = 0.5 * norm(data - data0,2) ^ 2 * dt
 
-    gradk = grad_l2_parallel(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef);
+    gradk = grad_l2_parallel(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; save_ratio=save_ratio, pml_len=pml_len, pml_coef=pml_coef);
     
     gradk = reshape(gradk, Nx*Ny, 1)
     
@@ -221,18 +221,16 @@ function obj_fn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_positi
     return fk, gradk
 end
 
-function obj_fn_sinkhorn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; cutoff=0, pml_len=10, pml_coef=100, reg=5e-3, reg_m=1e2, reg_p=0, iterMax=100, verbose=false)
+function obj_fn_sinkhorn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; cutoff=0, save_ratio=1, pml_len=10, pml_coef=100, reg=5e-3, reg_m=1e2, reg_p=0, iterMax=100, verbose=false)
     x = reshape(c, Nx, Ny)
 
-    data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
+    data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef, save_ratio=save_ratio)
 
-    if cutoff != 0
-        data = data - cutoff
-    end
-    
-#     gradk, fk = grad_sinkhorn_parallel(data, u, data0, c, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; reg_p=reg_p, pml_len=pml_len, pml_coef=pml_coef, reg=reg, reg_m=reg_m, iterMax=iterMax, verbose=verbose)
+#     if cutoff != 0
+#         data = data - cutoff
+#     end
 
-    gradk, fk = grad_sinkhorn_parallel(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; reg_p=reg_p, pml_len=pml_len, pml_coef=pml_coef, reg=reg, reg_m=reg_m, iterMax=iterMax, verbose=verbose)
+    gradk, fk = grad_sinkhorn_parallel(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; reg_p=reg_p, pml_len=pml_len, pml_coef=pml_coef, reg=reg, reg_m=reg_m, iterMax=iterMax, verbose=verbose, save_ratio=save_ratio)
 
     gradk = reshape(gradk, Nx*Ny, 1)
 #     gradk = reshape(gradk, Nx, Ny)

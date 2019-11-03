@@ -75,7 +75,7 @@ function gradient_descent(fn, x0, alpha, iterNum, min_value, max_value; rho=0.9,
     return xk, fn_value
 end
 
-function gradient_descent_test(fn, x0, alpha, iterNum, min_value, max_value; rho=0.9, c=0.9, threshold=1e-5)
+function gradient_descent_test(fn, x0, alpha, iterNum, min_value, max_value; rho=0.9, c=0.9, threshold=1e-9)
     
     xk = convert(Array{Float64,1}, x0[:])
     fn_value = zeros(iterNum+1)
@@ -90,7 +90,7 @@ function gradient_descent_test(fn, x0, alpha, iterNum, min_value, max_value; rho
         
 #         Compute gradient for next iteration
         fk, gradk = fn(xk)
-        gradk = gradk ./ maximum(abs.(gradk))
+#         gradk = gradk ./ maximum(abs.(gradk))
         fn_value[iter+1] = fk
         @printf "fk: %1.5e " fk
         println("----------------------------------------------------------------")
@@ -202,20 +202,47 @@ function obj_fn(data0, u, c, rho, Nx, Ny, Nt, h, dt, source, source_position, re
     return fk, gradk
 end
 
-function obj_fn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100)
+function obj_fn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; save_ratio=1, pml_len=10, pml_coef=100)
     x = reshape(c, Nx, Ny)
 
-    data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
+    data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; save_ratio=save_ratio, pml_len=pml_len, pml_coef=pml_coef)
 
-    fk = 0.5 * norm(data - data0) ^ 2 * dt
+    fk = 0.5 * norm(data - data0,2) ^ 2 * dt
 
-    gradk = grad_l2_parallel(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef);
+    gradk = grad_l2_parallel(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; save_ratio=save_ratio, pml_len=pml_len, pml_coef=pml_coef);
     
     gradk = reshape(gradk, Nx*Ny, 1)
+    
+#     gradk = reshape(gradk, Nx, Ny)
+#     gradk[1:20,:] .= 0
+#     gradk = gradk[:]
+    gradk = gradk ./ norm(gradk,2)
+    
     return fk, gradk
 end
 
-function obj_fn_sinkhorn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; cutoff=0, pml_len=10, pml_coef=100, reg=5e-3, reg_m=1e2, reg_p=0, iterMax=100, verbose=false)
+function obj_fn_sinkhorn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; cutoff=0, save_ratio=1, pml_len=10, pml_coef=100, reg=5e-3, reg_m=1e2, reg_p=0, iterMax=100, verbose=false)
+    x = reshape(c, Nx, Ny)
+
+    data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef, save_ratio=save_ratio)
+
+#     if cutoff != 0
+#         data = data - cutoff
+#     end
+
+    gradk, fk = grad_sinkhorn_parallel(data, u, data0, x, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; reg_p=reg_p, pml_len=pml_len, pml_coef=pml_coef, reg=reg, reg_m=reg_m, iterMax=iterMax, verbose=verbose, save_ratio=save_ratio)
+
+    gradk = reshape(gradk, Nx*Ny, 1)
+#     gradk = reshape(gradk, Nx, Ny)
+#     gradk[1:20,:] .= 0
+#     gradk = gradk[:]
+#     fk = 0.5 * norm(data - data0) ^ 2 * dt
+    
+    gradk = gradk ./ norm(gradk,2)
+    return fk, gradk
+end
+
+function obj_fn_sinkhorn_parallel_bal(data0, c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; cutoff=0, pml_len=10, pml_coef=100, reg=5e-3, reg_m=1e2, reg_p=0, iterMax=100, verbose=false)
     x = reshape(c, Nx, Ny)
 
     data, u = multi_solver_parallel(x, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
@@ -223,15 +250,13 @@ function obj_fn_sinkhorn_parallel(data0, c, rho, Nx, Ny, Nt, h, dt, source, sour
     if cutoff != 0
         data = data - cutoff
     end
-    
-    gradk, fk = grad_sinkhorn_parallel(data, u, data0, c, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; reg_p=reg_p, pml_len=pml_len, pml_coef=pml_coef, reg=reg, reg_m=reg_m, iterMax=iterMax, verbose=verbose)
+
+    gradk, fk =grad_sinkhorn_parallel_bal(data, u, data0, c, rho, Nx, Ny, Nt, h, dt, source_position, receiver_position; reg_p=reg_p, pml_len=pml_len, pml_coef=pml_coef, reg=reg, reg_m=reg_m, iterMax=iterMax, verbose=verbose)
 
     gradk = reshape(gradk, Nx*Ny, 1)
-    fk = 0.5 * norm(data - data0) ^ 2 * dt
+    gradk = gradk ./ norm(gradk,2)
     return fk, gradk
 end
-
-
 
 
 # using Printf
