@@ -208,6 +208,8 @@ function unbalanced_sinkhorn_1d(a, b, M, reg, reg_m; iterMax=100, verbose=true)
     lTK = lTK - T[ind_a,:] + K
 
     dist = reg * sum(lTK) + reg_m * (kla+klb)
+#     dist = reg * sum(T .* M) + reg_m * (kla + klb)
+#     dist = reg * sum(lTK)
     
     return T, grad, dist
 end
@@ -302,55 +304,6 @@ function unbalanced_sinkhorn_1d_signal(a, b, M, reg, reg_m; iterMax=100, verbose
 end
 
 ###
-function unbalanced_sinkhorn_1d_signal_s(a, b, M, reg, reg_m; reg_s=5e-4, iterMax=100, verbose=false)
-    Pap = proj_p(a)
-    Pan = proj_n(a)
-    Pbp = proj_p(b)
-    Pbn = proj_n(b)
-
-    ap = Pap * a
-    an = Pan * a
-    bp = Pbp * b
-    bn = Pbn * b
-    
-    if maximum(ap) == 0
-        ap = ones(length(a)) ./ length(a)
-    end
-    if maximum(an) == 0
-        an = ones(length(a)) ./ length(a)
-    end
-    if maximum(bp) == 0
-        bp = ones(length(b)) ./ length(b)
-    end
-    if maximum(bn) == 0
-        bn = ones(length(b)) ./ length(b)
-    end
-    
-    N = length(a)
-    P = zeros(N,1); P[:,1] = ap
-    ap = barycenter_unbalanced_1d(P, M, reg_s, reg_m; lambda=0, iterMax=iterMax, verbose=verbose)
-    
-    P = zeros(N,1); P[:,1] = an
-    an = barycenter_unbalanced_1d(P, M, reg_s, reg_m; lambda=0, iterMax=iterMax, verbose=verbose)
-    
-#     P = zeros(N,1); P[:,1] = bp
-#     bp = barycenter_unbalanced_1d(P, M, reg_s, reg_m; lambda=0, iterMax=iterMax, verbose=verbose)
-    
-#     P = zeros(N,1); P[:,1] = bn
-#     bn = barycenter_unbalanced_1d(P, M, reg_s, reg_m; lambda=0, iterMax=iterMax, verbose=verbose)
-    
-    Tp, gp, dp = unbalanced_sinkhorn_1d(ap, bp, M, reg, reg_m; iterMax=iterMax, verbose=verbose)
-    Tn, gn, dn = unbalanced_sinkhorn_1d(an, bn, M, reg, reg_m; iterMax=iterMax, verbose=verbose)
-    T = Tp - Tn
-#     grad = Pap*gp + Pan*gn
-    grad = gp - gn
-    dist = dp + dn
-
-    return T, grad, dist
-end
-###
-
-###
 function unbalanced_sinkhorn_1d_signal_linear(a, b, M, reg, reg_m; reg_p=0, iterMax=100, verbose=false)
 
     if reg_p == 0
@@ -370,7 +323,7 @@ end
 ###
 
 ###
-function unbalanced_sinkhorn_1d_signal_linear1(a, b, M, reg, reg_m; reg_p=0, iterMax=100, verbose=false)
+function sinkhorn_1d_signal_linear(a, b, M, reg; reg_p=0, iterMax=100, verbose=false)
 
     if reg_p == 0
         a = a .- minimum(a)
@@ -379,8 +332,10 @@ function unbalanced_sinkhorn_1d_signal_linear1(a, b, M, reg, reg_m; reg_p=0, ite
         a = a .+ reg_p
         b = b .+ reg_p
     end
-
-    T, grad, dist = unbalanced_sinkhorn_1d(a, b, M, reg, reg_m; iterMax=iterMax, verbose=verbose)
+    
+    a = a ./ norm(a,1)
+    b = b ./ norm(b,1)
+    T, grad, dist = sinkhorn_1d(a, b, M, reg; iterMax=iterMax, verbose=verbose)
     return T, grad, dist
 end
 ###
