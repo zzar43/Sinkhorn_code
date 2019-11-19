@@ -339,3 +339,12 @@ function sinkhorn_1d_signal_linear(a, b, M, reg; reg_p=0, iterMax=100, verbose=f
     return T, grad, dist
 end
 ###
+function unbalanced_sinkhorn_1d_signal_exp(a, b, M, reg, reg_m; c=1, iterMax=100, verbose=false)
+
+    a = exp.(c*a)
+    b = exp.(c*b)
+
+    T, grad, dist = unbalanced_sinkhorn_1d(a, b, M, reg, reg_m; iterMax=iterMax, verbose=verbose)
+    
+    return T, grad, dist
+end

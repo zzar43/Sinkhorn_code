@@ -159,7 +159,9 @@ function acoustic_eq_solver_s2t1(c, rho, Nx, Ny, Nt, h, dt, source, source_posit
     ux1 = ux1 ./ (1 .+ 0.5*dt*sigma_x);
     uy1 = (1 .- 0.5*dt*sigma_y).*uy0 - 0.5*dt*(sigma_y-sigma_x).*(dy(p1)+dy(p0));
     uy1 = uy1 ./ (1 .+ 0.5*dt*sigma_y);
-    p1[source_position_pml_vec] .= source[1,:]
+#     p1[source_position_pml_vec] .= dt^2*source[1,:]
+    p1[source_position_pml_vec] .+= source[1,:]
+    
 #     if rem(iter,save_ratio) == 0
 #         P[:,:,div(iter,save_ratio)] .= p2[pml_len+1:end-pml_len, pml_len+1:end-pml_len];
 #     end
@@ -175,10 +177,10 @@ function acoustic_eq_solver_s2t1(c, rho, Nx, Ny, Nt, h, dt, source, source_posit
         space = space + dx_b .* dx_p1 + dy_b .* dy_p1
         space = space + b .* laplace_central(p1, Nx_pml, Ny_pml, h, h)
         
-        p2 = -(-2a + dt.*a.*alpha + dt^2 .* a.*beta).*p1 - (a - dt.*a.*alpha).*p0 + dt.^2 .* space
-#         p2[source_position_pml_vec] .= dt^2*source[iter,:]
-        p2 = p2 ./ a
-        p2[source_position_pml_vec] .= source[iter,:]
+        p2 = -(-2 .+ dt.*alpha .+ dt^2 .*beta).*p1 - (1 .- dt.*alpha).*p0 + (dt.^2 ./ a) .* space
+        p2[source_position_pml_vec] .+= source[iter,:]
+#         p2[source_position_pml_vec] .= (1 ./ a[source_position_pml_vec]) .* (source[iter,:])
+#         p2[source_position_pml_vec] .+= (1 ./ a[source_position_pml_vec]) .* (dt^2*source[iter,:])
         
         ux2 = (1 .- 0.5*dt*sigma_x).*ux1 - 0.5*dt*(sigma_x-sigma_y).*(dx(p2)+dx_p1);
         ux2 = ux2 ./ (1 .+ 0.5*dt*sigma_x);
@@ -198,7 +200,7 @@ function acoustic_eq_solver_s2t1(c, rho, Nx, Ny, Nt, h, dt, source, source_posit
     return data, P
 end
 
-function acoustic_eq_solver_s4t2(c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100, save_ratio=1)
+function acoustic_eq_solver_s4t2(c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100, save_ratio=1, source_type=1)
 
     # prepare PML coef
     if ndims(source_position) == 1
@@ -250,6 +252,7 @@ function acoustic_eq_solver_s4t2(c, rho, Nx, Ny, Nt, h, dt, source, source_posit
     dy(A) = dy_central_4th(A, Nx_pml, Ny_pml, h);
 
     # initialize
+    t = range(0, length=Nt, step=dt)
     a = 1 ./ (rho_ex .* c_ex.^2);
     b = 1 ./ rho_ex;
     alpha = 1 * (sigma_x + sigma_y);
@@ -301,8 +304,12 @@ function acoustic_eq_solver_s4t2(c, rho, Nx, Ny, Nt, h, dt, source, source_posit
         space = space + b .* laplace_central_4th(s1.*p1, Nx_pml, Ny_pml, h, h)
 
         p2 = 2*p1 - p0 - dt^2 .* r.*p1 + (dt^2 ./ (a.*s1)) .* space;
-#         p2[source_position_pml_vec] .= dt ./ a[source_position_pml_vec] .* source[iter,:]
-        p2[source_position_pml_vec] .= source[iter,:]
+#         p2[source_position_pml_vec] .= dt^2 ./ (a[source_position_pml_vec].*s1[source_position_pml_vec]) .* source[iter,:]
+        if source_type == 1
+            p2[source_position_pml_vec] .+= source[iter,:]
+        elseif source_type == 2
+            p2[source_position_pml_vec] .= source[iter,:]
+        end
         
         ux2 = dt/2*(sigma_y-sigma_x) .* (dx_p1 + dx(s2.*p2)) + (1 .- dt/2*sigma_x).*ux1
         ux2 = ux2 ./ (1 .+ dt/2*sigma_x)
@@ -335,7 +342,7 @@ function multi_solver(c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiv
         source1 = source[:,ind]
         source_position1 = zeros(Int, 1, 2)
         source_position1 = source_position[ind,:]
-        d, p = acoustic_eq_solver_s2t1(c, rho, Nx, Ny, Nt, h, dt, source1, source_position1, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
+        d, p = acoustic_eq_solver_s4t2(c, rho, Nx, Ny, Nt, h, dt, source1, source_position1, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
         data[:,:,ind] = d;
         P[:,:,:,ind] = p;
     end
@@ -353,7 +360,7 @@ function backward_solver(c, rho, Nx, Ny, Nt, h, dt, adj_source, source_position,
 
     for ind = 1:source_num
         source1 = adj_source[:,:,ind]
-        d, p = acoustic_eq_solver_s2t1(c, rho, Nx, Ny, Nt, h, dt, source1, receiver_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
+        d, p = acoustic_eq_solver_s4t2(c, rho, Nx, Ny, Nt, h, dt, source1, receiver_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef)
         P[:,:,:,ind] = p;
     end
     return P
@@ -363,7 +370,7 @@ end
 
 using Distributed, SharedArrays
 
-function multi_solver_parallel(c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100, save_ratio=1)
+function multi_solver_parallel(c, rho, Nx, Ny, Nt, h, dt, source, source_position, receiver_position; pml_len=10, pml_coef=100, save_ratio=1, source_type=1)
     c = reshape(c, Nx, Ny)
     source_num = size(source_position,1)
     receiver_num = size(receiver_position,1)
@@ -375,7 +382,7 @@ function multi_solver_parallel(c, rho, Nx, Ny, Nt, h, dt, source, source_positio
         source1 = source[:,ind]
         source_position1 = zeros(Int, 1, 2)
         source_position1 = source_position[ind,:]
-        d, p = acoustic_eq_solver_s2t1(c, rho, Nx, Ny, Nt, h, dt, source1, source_position1, receiver_position; pml_len=pml_len, pml_coef=pml_coef, save_ratio=save_ratio)
+        d, p = acoustic_eq_solver_s4t2(c, rho, Nx, Ny, Nt, h, dt, source1, source_position1, receiver_position; pml_len=pml_len, pml_coef=pml_coef, save_ratio=save_ratio, source_type=source_type)
         data[:,:,ind] = d;
         P[:,:,:,ind] = p;
     end
@@ -387,7 +394,7 @@ function multi_solver_parallel(c, rho, Nx, Ny, Nt, h, dt, source, source_positio
 end
 
 # solver for backward wavefield in adjoint method with parallel computing
-function backward_solver_parallel(c, rho, Nx, Ny, Nt, h, dt, adj_source, source_position, receiver_position; pml_len=10, pml_coef=100, save_ratio=1)
+function backward_solver_parallel(c, rho, Nx, Ny, Nt, h, dt, adj_source, source_position, receiver_position; pml_len=10, pml_coef=100, save_ratio=1, source_type=2)
     c = reshape(c, Nx, Ny)
     adj_source = adj_source[end:-1:1,:,:]
     source_num = size(adj_source, 3)
@@ -397,7 +404,7 @@ function backward_solver_parallel(c, rho, Nx, Ny, Nt, h, dt, adj_source, source_
 
     @sync @distributed for ind = 1:source_num
         source1 = adj_source[:,:,ind]
-        d, p = acoustic_eq_solver_s2t1(c, rho, Nx, Ny, Nt, h, dt, source1, receiver_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef, save_ratio=save_ratio)
+        d, p = acoustic_eq_solver_s4t2(c, rho, Nx, Ny, Nt, h, dt, source1, receiver_position, receiver_position; pml_len=pml_len, pml_coef=pml_coef, save_ratio=save_ratio, source_type=source_type)
         P[:,:,:,ind] = p;
     end
     
